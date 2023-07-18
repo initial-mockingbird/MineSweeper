@@ -1,13 +1,17 @@
 package Delilah
 
 import Delilah.Algebra.*
+import Delilah.Encodings.Position
 import cats.arrow.Compose
 import cats.syntax.all.*
 
+import java.io.{File, FileOutputStream, FileWriter}
+import scala.io.Source
 import scala.collection.mutable
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.temporal.ChronoUnit
+import scala.collection.mutable.ListBuffer
 
 object Encodings {
 
@@ -38,18 +42,54 @@ object Encodings {
 
   // writes a map to a file
   def to_file(m : Map)(fp : String) : Unit = {
-    throw new NotImplementedError()
+    val file = new FileWriter(new File(fp))
+    m.map(
+      line => {
+        line.map {
+          case Mine() => 'X'
+          case Blank() => 'B'
+          case Unplayable() => 'U'
+          case Number(n) => n.toString.charAt(0)
+        }
+      }
+    ).foreach(line => {
+      file.write(line.appended('\n').toArray)
+    })
+    file.close
   }
 
   // opens a file, reads a map
   def from_file(fp : String) : Map = {
-    throw new NotImplementedError()
+    val buffer = Source.fromFile(fp)
+    val seqs = buffer.getLines().map(line => {
+      line.map {
+        case 'X' => Mine()
+        case 'B' => Blank()
+        case 'U' => Unplayable()
+        case c => {
+          if (!Character.isDigit(c))
+            throw new IllegalArgumentException("Wrong map representation")
+          Number(c.toString.toInt)
+        }
+      }
+    })
+
+    buffer.close
+    seqs.toSeq
   }
 
   // opens a dinmacs file, returns an error message if NOSAT else returns
   // a sequence with the dinmacs vars
   def _from_dinmacs_file(fp : String) : Either[String,Seq[DinMacsVar]] = {
-    throw new NotImplementedError()
+    val buffer = Source.fromFile(fp)
+    val line = buffer.getLines().toSeq.apply(0)
+    buffer.close()
+
+    line match
+      case "UNSAT" => Left("Tablero ambiguo")
+      case _ => {
+        Right(line.split(" ").map(s => (s.toInt - 1)).filter(s => s > 0).toSeq.dropRight(0))
+      }
   }
 
   def _from_dinmacs_file(m : Map)(fp: String): Either[String, Seq[MineEncoding]] = {
@@ -58,17 +98,18 @@ object Encodings {
 
   // reads dinmacs file into either a map or an error
   def from_dinmacs_file(m: Map)(fp: String): Either[String,Map] = {
-    throw new NotImplementedError()
+    _from_dinmacs_file(m)(fp).map(mines => set_mines_unsafe(m)(mines))
   }
 
   def mine_encoding_to_cnf_var(m : Map)(mineEncoding: MineEncoding) : DinMacsVar = {
     val cols  = m.head.length
     val (i,j) = mineEncoding
-    i * cols + j
+    i * cols + j + 1
   }
 
   def cnf_var_to_mine_encoding(m : Map)(cnfVar : DinMacsVar) : MineEncoding = {
     val cols = m.head.length
+    val v    = cnfVar - 1
     val j    = cnfVar % cols
     val i    = cnfVar / cols
     (i,j)
@@ -79,23 +120,40 @@ object Encodings {
   /** ********** */
 
   // sets the given mines without checking conditions
-  def set_mines_unsafe(m : Map)(mines : Seq[MineEncoding]) : Mine = {
-    throw new NotImplementedError()
+  def set_mines_unsafe(m : Map)(mines : Seq[MineEncoding]) : Map = {
+    var out = m
+    mines.foreach(mine =>
+      out = out.updated(mine._1, out.apply(mine._1).updated(mine._2, Mine()))
+    )
+    out
   }
 
   // true if the element can be replaced by a mine, false otherwise
   def is_mineable(mapElement: MapElement) : Boolean = {
-    throw new NotImplementedError()
+    mapElement match
+      case Blank() => true
+      case _ => false
   }
 
-  // Return a set of (where a mine is, what number does it hold)
-  def find_numbers(m : Map) : Set[(MineEncoding,Int)] = {
-    throw new NotImplementedError()
+  // Return a set of (where a Number is, what value does it hold)
+  def find_numbers(m: Map): Set[(Position, Int)] = {
+    m.zipWithIndex.map(trow => {
+      trow._1.zipWithIndex.map(ttile => {
+        ttile._1 match
+          case Number(n) => ((trow._2, ttile._2), n)
+          case _ => ((-1, -1), -1)
+      }).filter(r => r._2 != -1)
+    }).fold(Seq.empty)((a, b) => a.concat(b)).toSet
   }
 
   // returns the neighborhood of a given position
-  def neighborhood(m : Map)(p : Position) : Set[(Position,MapElement)] = {
-    throw new NotImplementedError()
+  def neighborhood(m: Map)(p: Position): Set[(Position, MapElement)] = {
+    val w = m.apply(0).length
+    val h = m.length
+
+    (for i <- -1 until 2
+         j <- -1 until 2 if ((i != 0 || j != 0) && (0 until h contains (p._1 + i)) && (0 until w contains (p._2 + j)))
+    yield ((p._1 + i, p._2 + j), m.apply(p._1 + i).apply(p._2 + j))).toSet
   }
 
   // returns all the positions of a neighborhood that a mine can be positioned.
@@ -112,12 +170,18 @@ object Encodings {
 
   // combine everything here
   def to_dinmacs_str(m : Map) : String = {
-
     // your goal is to generate something of this type Algebra[DinMacsVar]
-    // hint: use enconde_space1 or encose_space2
-    val a : Algebra[DinMacsVar] = throw new NotImplementedError()
-    _to_dinmacs_str(m)(a)
+    // hint: use enconde_space1 or encode_space2
+
+    val algebra1  = find_numbers(m)
+                    .map(n => mineable_neighborhood(m)(n._1)
+                      .toSeq.combinations(n._2)
+                      .map(c => encode_space1(c.toSet, neighborhood(m)(n._1).toSet))).toSeq
+    "te amo dani y lo siento, soy chico software, no chico funcional ni scalar"
+    //val a : Algebra[DinMacsVar] =
+    //_to_dinmacs_str(m)(a)
   }
+
   // algebra should be in cnf.
   def _to_dinmacs_str(m : Map)(a : Algebra[DinMacsVar]) : String = {
     val N  = m.length
@@ -126,6 +190,5 @@ object Encodings {
     val total_vars = N * M
     "p cnf " + total_vars.toString + " " + total_clauses.toString + " \n" + clauses
   }
-
 }
 
