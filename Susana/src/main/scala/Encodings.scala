@@ -60,6 +60,7 @@ object Encodings {
 
   // opens a file, reads a map
   def from_file(fp : String) : Map = {
+    println(fp)
     val buffer = Source.fromFile(fp)
     val seqs = buffer.getLines().map(line => {
       line.map {
@@ -161,7 +162,7 @@ object Encodings {
     = neighborhood(m)(p).filter(ab => is_mineable(ab._2)).map(_._1)
 
   // Give mines and the neighborhood, yields restriction
-  def encode_space1[A](mines : Set[A], total : Set[A]) : Algebra[A]
+  def encode_space1[A](total : Set[A])(mines : Set[A]) : Algebra[A]
     = all(mines.toSeq) & flatten(all(total.diff(mines).toSeq).map(it => ~VariableTerm(it)))
 
   // Give mines and no mines, yields restriction
@@ -172,14 +173,20 @@ object Encodings {
   def to_dinmacs_str(m : Map) : String = {
     // your goal is to generate something of this type Algebra[DinMacsVar]
     // hint: use enconde_space1 or encode_space2
+    val neigh_m  = neighborhood(m)
+    val algebra1  :  Seq[Algebra[MineEncoding]]
+      =  find_numbers(m).map( n => {
+      val mn = mineable_neighborhood(m)(n._1).toSeq
+      val neigh_n = neigh_m(n._1).map(_._1)
+      val mineCombinations = mn.combinations(n._2).toSeq
+      val FF_n = or(mineCombinations.map( ((it : Seq[Position] )=> it.toSet) >>> encode_space1(neigh_n)))
+      val F_n  = flatten (FF_n)
+      F_n
+    }).toSeq
 
-    val algebra1  = find_numbers(m)
-                    .map(n => mineable_neighborhood(m)(n._1)
-                      .toSeq.combinations(n._2)
-                      .map(c => encode_space1(c.toSet, neighborhood(m)(n._1).toSet))).toSeq
-    "te amo dani y lo siento, soy chico software, no chico funcional ni scalar"
-    //val a : Algebra[DinMacsVar] =
-    //_to_dinmacs_str(m)(a)
+    val algebra2 : Algebra[DinMacsVar] = flatten(all(algebra1)).map(mine_encoding_to_cnf_var(m))
+    val a : Algebra[DinMacsVar] = to_CNF(algebra2)
+    _to_dinmacs_str(m)(a)
   }
 
   // algebra should be in cnf.

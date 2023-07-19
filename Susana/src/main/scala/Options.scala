@@ -27,16 +27,7 @@ object Options {
 
   def runner() = {
 
-    val m = Seq(
-      Seq(Number(0), Mine(), Mine()),
-      Seq(Number(1), Number(3), Number(5)),
-      Seq(Number(2), Blank(), Number(4)))
 
-    find_numbers(m).foreach(n => println(n))
-
-    println(neighborhood(m)((2,2)))
-
-    /*
     val fp = "./options.yaml"
     val readFile = (fp: String) => Source.fromFile(fp).mkString
     val options : Options = (readFile >>> yaml.parser.parse >>> (it => it.toOption.get.toString) >>> decode[Options])(fp).toOption.get
@@ -49,6 +40,6 @@ object Options {
     (options.glucoseExecutable + " " + options.glucoseInput + " " + options.glucoseOutput).!!
     val dinmacsSol = from_dinmacs_file(map)(options.glucoseOutput).getOrElse(throw new IllegalArgumentException("UNSAT"))
     to_file(dinmacsSol)(options.output)
-    */
+
   }
 }
