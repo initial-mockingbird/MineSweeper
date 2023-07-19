@@ -60,7 +60,6 @@ object Encodings {
 
   // opens a file, reads a map
   def from_file(fp : String) : Map = {
-    println(fp)
     val buffer = Source.fromFile(fp)
     val seqs = buffer.getLines().map(line => {
       line.map {
@@ -75,7 +74,6 @@ object Encodings {
       }
     })
 
-    buffer.close
     seqs.toSeq
   }
 
@@ -84,7 +82,6 @@ object Encodings {
   def _from_dinmacs_file(fp : String) : Either[String,Seq[DinMacsVar]] = {
     val buffer = Source.fromFile(fp)
     val line = buffer.getLines().toSeq.apply(0)
-    buffer.close()
 
     line match
       case "UNSAT" => Left("Tablero ambiguo")
